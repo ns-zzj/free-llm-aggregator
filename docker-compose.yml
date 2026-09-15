@@ -1,0 +1,23 @@
+services:
+  aggregator:
+    build: .
+    image: nszzj-free-llm-aggregator:latest
+    container_name: nszzj-free-llm-aggregator
+    restart: unless-stopped
+    network_mode: host
+    security_opt:
+      - no-new-privileges:true
+    cap_drop:
+      - ALL
+    mem_limit: 512m
+    pids_limit: 256
+    environment:
+      PORT: "8787"
+      ADMIN_TRUSTED_PEERS: ""
+      ALLOW_PUBLIC_INTERNET: "false"
+    volumes:
+      - type: bind
+        source: <此处填写宿主机软件数据存储路径>
+        target: /app/data
+        bind:
+          create_host_path: true

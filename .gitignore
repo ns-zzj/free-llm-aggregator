@@ -1,0 +1,21 @@
+node_modules/
+data/
+.tmp/
+dist/
+.npm-cache/
+.env
+# 配置文件（优先级：环境变量 > 这个文件 > 内置默认）。可能含主密钥，绝不提交
+normal.env
+*.log
+install*.log
+test-run.log
+form-login.txt
+# 回滚前的自动备份（scripts/db-rollback.js 生成）：里面有 app-secret.key + 数据库，
+# 也就是上游 key 的明文等价物，绝不能顺手 git add 进来
+data-backup-*/
+# 干净副本（给别人/存档用的一份纯净源码，不含配置与密钥）
+nszzj-free-llm-aggregator/
+# 打包产物：源码包和镜像包（镜像包 100MB 上下，进 git 既没用又会把仓库撑爆、
+# 推 GitHub 还可能撞 100MB 单文件上限）—— 发 Release 时手动上传，别提交
+*.tgz
+*.tar.gz

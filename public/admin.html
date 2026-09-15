@@ -1,0 +1,85 @@
+<!doctype html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>LLM 聚合网关 · 管理后台</title>
+    <link rel="icon" href="data:," />
+    <link rel="stylesheet" href="/style.css" />
+  </head>
+  <body>
+    <!-- 登录区默认可见：即使 app.js 因缓存或 JS 故障没跑起来，也能用原生表单提交登录 -->
+    <div id="login-view">
+      <form id="login-form" method="post" action="/api/admin/login">
+        <h1>LLM 聚合网关</h1>
+        <input
+          type="password"
+          name="password"
+          id="login-password"
+          placeholder="管理密码"
+          autocomplete="current-password"
+          required
+        />
+        <button class="primary" type="submit">登录</button>
+        <p class="error-text" id="login-error"></p>
+      </form>
+    </div>
+
+    <!-- 首次设置：啥也没有的时候（新装 / 刚重置过凭据）显示这一屏 -->
+    <div id="setup-view" hidden>
+      <form id="setup-form" method="post" action="/api/admin/setup">
+        <h1>首次设置</h1>
+        <p class="muted small">之后都能在「密码」页里改。</p>
+        <label class="block">
+          <span>后台管理密码</span>
+          <input
+            type="password"
+            name="adminPassword"
+            id="setup-password"
+            placeholder="至少 6 位，登录这个后台用"
+            autocomplete="new-password"
+            required
+          />
+        </label>
+        <label class="block">
+          <span id="setup-key-title">下游请求 apikey（留空则自动生成）</span>
+          <div class="key-row">
+            <input type="text" name="accessKey" id="setup-access-key" placeholder="随便写，sk- 会自动补上" autocomplete="off" />
+            <button type="button" id="setup-key-change" hidden>更改</button>
+          </div>
+        </label>
+        <button class="primary" type="submit">完成设置</button>
+        <p class="error-text" id="setup-error"></p>
+      </form>
+    </div>
+
+    <div id="app-view" hidden>
+      <header>
+        <h1>LLM 聚合网关</h1>
+        <nav id="tabs">
+          <button data-tab="overview" class="active">主页</button>
+          <button data-tab="all-order">All模型顺序</button>
+          <button data-tab="groups">模型组</button>
+          <button data-tab="providers">提供商</button>
+          <button data-tab="password">密码</button>
+          <button data-tab="logs">日志</button>
+          <button data-tab="settings">设置</button>
+        </nav>
+        <button id="logout">退出</button>
+      </header>
+
+      <main>
+        <section id="tab-overview"></section>
+        <section id="tab-all-order" hidden></section>
+        <section id="tab-groups" hidden></section>
+        <section id="tab-providers" hidden></section>
+        <section id="tab-password" hidden></section>
+        <section id="tab-logs" hidden></section>
+        <section id="tab-settings" hidden></section>
+      </main>
+    </div>
+
+    <script src="/boot.js"></script>
+    <script src="/app.js"></script>
+  </body>
+</html>

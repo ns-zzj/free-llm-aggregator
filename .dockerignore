@@ -1,0 +1,20 @@
+node_modules
+data
+.tmp
+dist
+test
+.npm-cache
+.git
+.gitignore
+.dockerignore
+docs
+*.tar.gz
+*.tgz
+*.log
+install*.log
+.env
+normal.env
+# 回滚前的自动备份（含 app-secret.key + 数据库）不该进镜像
+data-backup-*
+# 干净副本不该进镜像
+nszzj-free-llm-aggregator

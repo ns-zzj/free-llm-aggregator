@@ -1,0 +1,33 @@
+{
+  "name": "nszzj-free-llm-aggregator",
+  "version": "1.0.0",
+  "private": true,
+  "description": "自用 LLM API 聚合网关（服务端版，见 docs/设计文档.md）",
+  "main": "src/index.js",
+  "engines": {
+    "node": ">=22"
+  },
+  "scripts": {
+    "init": "node scripts/init-env.js",
+    "start": "node src/index.js",
+    "dev": "node --watch src/index.js",
+    "migrate": "knex migrate:latest --knexfile knexfile.js",
+    "migrate:rollback": "node scripts/db-rollback.js",
+    "reset:credentials": "node scripts/reset-credentials.js",
+    "reset:admin-password": "node scripts/reset-admin-password.js",
+    "image": "node scripts/build-image.js",
+    "test": "node --test \"test/*.test.js\"",
+    "test:local": "node test/m0.test.js && node test/m1m2.test.js && node test/m4.test.js && node test/m5.test.js && node test/m6.test.js && node test/m7.test.js && node test/m8.test.js && node test/m9.test.js"
+  },
+  "dependencies": {
+    "better-sqlite3": "^13.0.3",
+    "cookie-parser": "^1.4.7",
+    "dotenv": "^17.4.2",
+    "express": "^4.22.2",
+    "knex": "^3.3.0",
+    "libsodium-wrappers": "^0.8.4"
+  },
+  "overrides": {
+    "qs": "^6.16.0"
+  }
+}

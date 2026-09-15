@@ -158,14 +158,25 @@ router.post('/setup', asyncHandler(async (req, res) => {
 
   // 下游口令：填了就换成它；留空 = 不动（已经有就沿用原来的，没有才自动生成一条）。
   // 「留空」绝不能被当成"换成随机新口令" —— 改管理密码时顺手把下游 key 换掉会连累所有客户端。
+  //
+  // 三种情况要**分开告诉前端**（用户 2026-09-15 报的 bug）：原来只回一个布尔
+  // `accessKeyChanged`，"留空+已有→沿用"和"留空+没有→新生成"被混成同一个 false，
+  // 于是首次设置页把刚生成的那条说成"沿用原来的"。
   const wanted = String(body.accessKey || '').trim();
   let key;
-  let accessKeyChanged = false;
+  let accessKeyAction;
   if (wanted) {
     key = await accessKeys.change(wanted);
-    accessKeyChanged = true;
+    accessKeyAction = 'changed';
   } else {
-    key = (await accessKeys.primary()) || (await accessKeys.change(''));
+    const existing = await accessKeys.primary();
+    if (existing) {
+      key = existing;
+      accessKeyAction = 'kept';
+    } else {
+      key = await accessKeys.change('');
+      accessKeyAction = 'generated';
+    }
   }
 
   const token = auth.createSession();
@@ -173,13 +184,14 @@ router.post('/setup', asyncHandler(async (req, res) => {
   logger.info('已完成首次设置', {
     ip: net.clientAddress(req),
     accessKeyId: key.id,
-    accessKeyChanged,
+    accessKeyAction,
   });
   res.status(201).json({
     ok: true,
     accessKey: key.plaintext || key.key || null,
     accessKeyMasked: key.masked || '',
-    accessKeyChanged,
+    accessKeyAction, // changed | kept | generated
+    accessKeyChanged: accessKeyAction === 'changed', // 留着：别的调用方可能还在看这个布尔
   });
 }));
 
@@ -188,7 +200,7 @@ router.post('/setup', asyncHandler(async (req, res) => {
 /**
  * 登录失败限速（审计 M2）：按来源 IP 锁定，参数用 limiter 的默认值（用户 2026-09-15 定的）——
  * 连续失败 5 次锁 5 分钟，之后每再失败一次翻倍（1 小时封顶），24 小时没动静就忘掉，成功即解禁。
- * `/v1/*` 用的是同一套（见 src/app.js 的 v1FailureGuardMiddleware）。
+ * 客户端面（`/openai`、`/anthropic`）用的是同一套（见 src/app.js 的 v1FailureGuardMiddleware）。
  */
 const loginGuard = createFailureGuard();
 
@@ -358,6 +370,15 @@ router.get(
 );
 
 // --------------------------------------------------------------- 提供商 CRUD
+
+/**
+ * 支持的**上游协议**清单（后台「提供商」表单那个下拉框用它）。
+ * 唯一出处是适配器注册表（src/gateway/adapters/index.js）—— 前端以前自己抄了一份，
+ * 结果是"后端加了协议、下拉框里没有"，所以改成从这里取。
+ */
+router.get('/adapters', auth.requireAdmin, asyncHandler(async (req, res) => {
+  res.json({ adapters: adapter.describeAdapters() });
+}));
 
 router.get('/providers', auth.requireAdmin, asyncHandler(async (req, res) => {
   res.json(await providersStore.list());

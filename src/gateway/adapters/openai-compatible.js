@@ -5,7 +5,7 @@
  * 请求与响应都**原样透传**，只改模型名、只删本服务自己的扩展字段。
  */
 
-const { responseModel } = require('./common');
+const { responseModel, PROBE_MAX_TOKENS } = require('./common');
 
 /**
  * chat/completions 的请求体**不删字段**（各家兼容实现各有所需），
@@ -41,7 +41,7 @@ function buildProbeRequest(provider, realModelId) {
     payload: {
       model: realModelId,
       messages: [{ role: 'user', content: 'ping' }],
-      max_tokens: 1,
+      max_tokens: PROBE_MAX_TOKENS,
       stream: false,
     },
   };

@@ -6,12 +6,13 @@
  */
 
 const openaiCompatible = require('./openai-compatible');
+const openaiResponses = require('./openai-responses');
 const anthropic = require('./anthropic');
 const cloudflare = require('./cloudflare-workers-ai');
 
 const DEFAULT_ADAPTER = openaiCompatible.id;
 
-const LIST = [openaiCompatible, anthropic, cloudflare];
+const LIST = [openaiCompatible, openaiResponses, anthropic, cloudflare];
 const BY_ID = new Map(LIST.map((impl) => [impl.id, impl]));
 
 function get(id) {

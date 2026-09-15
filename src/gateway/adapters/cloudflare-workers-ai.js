@@ -29,9 +29,15 @@
  *      —— 少数新模型（gpt-oss 系）。**这条没真机验证过**，只做了容错解析，认不出来就返回 null。
  */
 
-const { firstLineOf, chunkOf, responseModel, positiveInt } = require('./common');
+const { firstLineOf, chunkOf, responseModel, positiveInt, PROBE_MAX_TOKENS } = require('./common');
 const DEFAULT_BASE_URL = 'https://api.cloudflare.com/client/v4';
-const DEFAULT_MAX_TOKENS = 2048;
+/**
+ * 客户端没传输出上限时填的值（用户 2026-09-15 定：2048 → 8192）。
+ * 只有"客户端没传 max_tokens"时才用得上；传了永远客户端说了算。
+ * CF 上不同模型的输出上限差别很大，真碰上某个小模型报"超过上限"的 400，改这个值
+ * 或者把它做成"每个提供商可配"即可。
+ */
+const DEFAULT_MAX_TOKENS = 8192;
 
 // Workers AI 只认这些参数，其它字段传过去可能被拒（OpenAI 的扩展字段尤其）
 const ALLOWED_PARAMS = [
@@ -92,7 +98,7 @@ function buildProbeRequest(provider, realModelId) {
   return {
     url: runUrl(provider, realModelId),
     headers: headersFor(provider, false),
-    payload: { messages: [{ role: 'user', content: 'ping' }], max_tokens: 1 },
+    payload: { messages: [{ role: 'user', content: 'ping' }], max_tokens: PROBE_MAX_TOKENS },
   };
 }
 

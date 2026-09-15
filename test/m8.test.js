@@ -118,7 +118,7 @@ test('M8-3) 走 IPv6：客户端面和后台都正常', async (t) => {
   if (!ipv6) return t.skip('这台机器没有 IPv6，跳过');
 
   // 客户端面：/v1/models
-  const models = await fetch(url('[::1]', '/v1/models'), { headers: { authorization: `Bearer ${ACCESS_KEY}` } });
+  const models = await fetch(url('[::1]', '/openai/models'), { headers: { authorization: `Bearer ${ACCESS_KEY}` } });
   assert.equal(models.status, 200, 'IPv6 调用 /v1 要正常');
   const payload = await models.json();
   assert.ok(payload.data.some((m) => m.id === 'All'), '模型列表照常发布 All');
@@ -145,7 +145,7 @@ test('M8-4) 公网 IPv6 来源访问后台 → 403（和公网 IPv4 一个待遇
     assert.equal(blocked.json.error.code, 'admin_local_only');
 
     // 客户端面不受影响
-    const models = await fetch(url('127.0.0.1', '/v1/models'), { headers: { authorization: `Bearer ${ACCESS_KEY}` } });
+    const models = await fetch(url('127.0.0.1', '/openai/models'), { headers: { authorization: `Bearer ${ACCESS_KEY}` } });
     assert.equal(models.status, 200);
 
     // 内网 IPv6（唯一本地地址）依旧放行
@@ -268,7 +268,7 @@ test('M8-8) 源 IP 被 NAT/代理抹掉时管理端闸 fail-closed（审计 H1�
     assert.equal(spoofed.status, 403, '伪造 XFF 也不该放行');
 
     // /v1/* 不受影响（客户端面本来就要对外）
-    const models = await fetch(url('127.0.0.1', '/v1/models'), { headers: { authorization: `Bearer ${ACCESS_KEY}` } });
+    const models = await fetch(url('127.0.0.1', '/openai/models'), { headers: { authorization: `Bearer ${ACCESS_KEY}` } });
     assert.equal(models.status, 200, '管理端闸只挡后台，客户端面照常');
   } finally {
     net.clientAddress = real;

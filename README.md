@@ -16,11 +16,16 @@
 
 ## 功能
 
-**对外接口（OpenAI 兼容）**
+**对外接口（两种客户端方言，地址按协议族分前缀）**
 
-- `GET /v1/models`、`GET /v1/models/<名字>`、`POST /v1/chat/completions`（支持流式 SSE）
-- 假数据端点（兼容某些客户端的探测）：`GET /v1/usage`、`/v1/billing/subscription`、`/v1/credits`（后台可关）
-- 健康检查：`GET /healthz`
+| 前缀 | 端点 | 给谁用 |
+|---|---|---|
+| `/openai` | `POST /openai/chat/completions`（含流式 SSE）、`POST /openai/responses`、`GET /openai/models`、`GET /openai/models/<名字>` | OpenAI SDK、新版 OpenAI SDK（默认走 Responses）、Cherry Studio 这类能填自定义 OpenAI 地址的工具 |
+| `/anthropic` | `POST /anthropic/messages`、`GET /anthropic/models` | Claude Code、Anthropic SDK |
+| 两个前缀都认 | 假数据端点 `GET /openai/usage`、`/openai/billing/subscription`、`/openai/credits`（后台可关）；`GET /healthz` | |
+
+- 地址里的 `/v1` **可有可无**：`/openai/v1/models` = `/openai/models`（有些客户端会自己拼上去）
+- **客户端说哪种方言，和上游是哪家协议无关** —— 由适配器负责翻译，任意组合都能用
 
 **选源**
 
@@ -39,11 +44,15 @@
 
 - 按提供商填写限速rpm，每次调用后按rpm冷却提供商下所有模型
 
-**上游协议**
+**上游协议**（一个来源选一种，后台「提供商」页的下拉框里选）
 
 - `openai-compatible`（绝大多数平台：ModelScope、NVIDIA NIM、DeepSeek、各家中转……）
-- `anthropic`（Claude / Anthropic 兼容地址，请求与响应自动翻成 OpenAI 形状，流式也翻）
+- `openai-responses`（OpenAI 官方的 Responses API；`store` 恒等于关掉，不在上游留会话）
+- `anthropic`（Claude / Anthropic 兼容地址，请求与响应自动翻成内部形状，流式也翻）
 - `cloudflare-workers-ai`（模型名在 URL 路径里，两种返回方言都认）
+
+> **任意组合都行**：客户端说 OpenAI 或 Anthropic 方言，上游是上面四种里的任何一种 ——
+> 网关在协议边界做翻译，客户端看到的形状永远是它自己那套。
 
 **图片（视觉）**
 
@@ -57,7 +66,7 @@
 - 模型组可创建自定义组合，例如：ModelGroup/DeepSeek（deepseek-v4-flash-0731, deepseek-v4-flash-vision-exp……）
 - 概览：今日请求数 / 失败数、免费与付费 token 分开计、可用模型数
 - 一键「测试」和「立即探测」上游
-- 后台登录和 `/v1` 都有**失败锁定**：同一个来源连续失败 5 次 → 锁 5 分钟，再失败翻倍（最多 1 小时），
+- 后台登录和 `/openai` 都有**失败锁定**：同一个来源连续失败 5 次 → 锁 5 分钟，再失败翻倍（最多 1 小时），
   成功一次立刻解禁，24 小时没动静就忘掉（见「已知限制」最后一条）
 
 **凭据**
@@ -145,18 +154,24 @@ npm start
 1. 打开 `http://<地址>:8787/admin` → 「首次设置」：设**管理密码** + **下游 apikey**（留空自动生成）
 2. 「提供商」页添加上游：地址 + apiKey + 速率 + 拒绝策略
 3. 在该提供商下「添加模型」（填上游真实的模型 id）
-4. 客户端连 `http://<地址>:8787/v1`，用那个下游 apikey
+4. 客户端连 `http://<地址>:8787/openai`，用那个下游 apikey
 
 ---
 
 ## 客户端怎么用
 
-```
-base_url : http://<地址>:8787/v1
-鉴权      : Authorization: Bearer <下游 apikey>
-```
+按客户端说的**方言**挑一个地址填进去就行（和上游是哪家协议无关）：
 
-请求体里的 `model` 只有**四种**合法写法（`GET /v1/models` 返回的就是这些）：
+| 客户端说什么 | base_url | 鉴权 |
+|---|---|---|
+| OpenAI 方言 | `http://<地址>:8787/openai` | `Authorization: Bearer <下游 apikey>` |
+| Anthropic 方言 | `http://<地址>:8787/anthropic` | `x-api-key: <下游 apikey>`（或 `Authorization: Bearer`） |
+
+- 地址里的 `/v1` 加不加都认（`.../openai/v1` = `.../openai`）—— 有些客户端会自己拼上去
+- 走 OpenAI 那套的客户端，`chat/completions` 和 `responses` 两个端点都能用（新版 OpenAI SDK 默认走后者）
+- 后台「密码」页会把你自己的这两个地址列出来，带复制按钮，不用手打
+
+请求体里的 `model` 只有**四种**合法写法（`GET /openai/models` 返回的就是这些，Anthropic 方言同一套名字）：
 
 | 写法 | 例子 | 行为 |
 |---|---|---|
@@ -271,7 +286,7 @@ sudo mkdir -p /你的路径 && sudo chown -R 10001:10001 /你的路径
 
 - **SSH 隧道**（最省事）：`ssh -L 8787:127.0.0.1:8787 用户@服务器`，然后开 `http://localhost:8787/admin`
 - 改容器环境变量，把 `ALLOW_PUBLIC_INTERNET` 设成 `"true"`，然后重新运行。 ⚠ 注意，程序没有https加密（见上文 1），公网访问需承担风险。这个开关**只在环境变量里**，后台设置页没有。
-- `/v1/*` 客户端接口**不受这条限制**，一直是对外的。
+- `/openai/*` 客户端接口**不受这条限制**，一直是对外的。
 
 ### 4. 探测会真的打上游
 
@@ -292,12 +307,12 @@ sudo mkdir -p /你的路径 && sudo chown -R 10001:10001 /你的路径
 
 ### 7. 同一个来源连续失败会被锁（防的是客户端死循环）
 
-规矩（后台登录和 `/v1/*` 各算各的，参数一样）：
+规矩（后台登录和 `/openai/*` 各算各的，参数一样）：
 
 - 同一个来源 IP **连续失败 5 次** → 锁 **5 分钟**
 - 之后每再失败一次**翻倍**：10 → 20 → 40 分钟，**1 小时封顶**
 - **成功一次立刻解禁**（计数清零）；**24 小时**没有新的失败就忘掉这个人
-- `/v1/*` 里什么算失败：响应是 4xx/5xx（口令不对、模型名写错、来源全挂了、上游报错……）；2xx 算成功
+- `/openai/*` 里什么算失败：响应是 4xx/5xx（口令不对、模型名写错、来源全挂了、上游报错……）；2xx 算成功
 
 被锁时拿到的是 `429` + `Retry-After`（秒），`error.code` 是 `too_many_failures`，直接说还要等多少秒。
 撞上基本只有一个原因：客户端配置写错了（模型名 / 口令），改对之后等 `Retry-After` 秒自动恢复。
@@ -318,3 +333,4 @@ sudo mkdir -p /你的路径 && sudo chown -R 10001:10001 /你的路径
 | 代理/公网进不了后台 | 见「已知限制 · 管理后台默认只收本机 / 内网」 |
 | 改了配置没生效 | 看启动日志开头那张「配置来源表」，以及"不认"的告警 |
 | 客户端的 `model` 报 404 | 名字要写全：`All` 或 `Free/<来源id>/<模型名>` 或 `Pay/<来源id>/<模型名>` 或 `ModelGroup/<组名>` |
+| 客户端只显示 tokens、没有正文 | 上游是**推理模型**时，「思考」和正文**共享** `max_tokens` / `max_output_tokens`。预算给太小（几十~几百 token）会全花在思考上，一个字正文都没生成（收尾是 `incomplete` 而不是 `completed`，思考文本会作为 `reasoning_content` / `reasoning` 项一起给你）。**把上限调大**，或者关掉思考（DeepSeek 等支持 `reasoning_effort: "none"`，Responses 方言用 `reasoning: {"effort":"none"}`） |

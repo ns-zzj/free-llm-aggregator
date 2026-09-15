@@ -100,7 +100,7 @@ async function ensureAccessKey() {
     return;
   }
   logger.warn(
-    '当前没有任何访问口令：/v1/* 会拒绝所有请求。请在后台「密码」页设置一个，或设置 ACCESS_KEY 环境变量后重启。'
+    '当前没有任何访问口令：/openai/* 与 /anthropic/* 会拒绝所有请求。请在后台「密码」页设置一个，或设置 ACCESS_KEY 环境变量后重启。'
   );
 }
 
@@ -194,7 +194,8 @@ async function bootstrap() {
   const { server, host, dualStack, fallback } = await listenHttp(app);
   const urlHost = net.hostForUrl(host);
   logger.info(
-    `服务已启动：http://${urlHost}:${config.port}/v1 （管理后台 http://${urlHost}:${config.port}/admin ）`,
+    `服务已启动：http://${urlHost}:${config.port}/openai （客户端地址，/v1 可加可不加）` +
+      ` ｜ 管理后台 http://${urlHost}:${config.port}/admin`,
     {
       bind: host,
       dualStack,

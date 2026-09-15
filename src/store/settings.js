@@ -11,7 +11,7 @@ const cryptoUtil = require('../crypto');
 const { HttpError } = require('./providers');
 
 const DEFAULTS = {
-  allow_no_key: 'false',            // 是否允许不带口令访问 /v1/*
+  allow_no_key: 'false',            // 是否允许不带口令访问客户端面（/openai、/anthropic）
   // 注：「管理端只允许内网来源」以前是这里的一个设置项（admin_local_only，后台「设置」页可切）。
   // 用户 2026-09-13 把它删了 —— 公网放不放行现在只看环境变量 ALLOW_PUBLIC_INTERNET 一个地方。
   fake_endpoints_enabled: 'true',   // usage / billing / credits 假数据端点

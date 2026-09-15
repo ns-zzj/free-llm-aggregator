@@ -211,7 +211,7 @@ async function probeModel(provider, model, { manual = false, asCall = false } = 
       }
       await sourceState.markSuccess(provider.id, model.modelId);
       // 探测/测试也是真调用，用量要记账 —— 不然主页「今日 token」会漏掉这一部分
-      // （每次只有 max_tokens=1 的量，但 CF 那类按 token 计费的平台该算还是得算）
+      // （探测请求的上限是 1024，但模型收到 "ping" 只回几个 token 就停，实际用量很小）
       const usage = probeUsage(provider, text, model.modelId);
       await callLog.add({
         providerId: provider.id,

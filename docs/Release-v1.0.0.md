@@ -12,9 +12,9 @@
 # ① 导入镜像
 docker load < nszzj-free-llm-aggregator_1.0.0_<架构>.tar.gz
 
-# ② 数据目录（镜像里跑的是非 root，uid 10001）
-sudo mkdir -p ~/llm-gateway-data
-sudo chown -R 10001:10001 ~/llm-gateway-data
+# ② 建数据目录（镜像里跑的是非 root，uid 10001）
+sudo mkdir -p <宿主机软件数据存储路径>
+sudo chown -R 10001:10001 <刚才写的路径>
 
 # ③ 起服务
 sudo docker run -d \
@@ -28,7 +28,7 @@ sudo docker run -d \
   -e PORT=8787 \
   -e ADMIN_TRUSTED_PEERS= \
   -e ALLOW_PUBLIC_INTERNET=false \
-  -v ~/llm-gateway-data:/app/data \
+  -v <刚才写的路径>:/app/data \
   nszzj-free-llm-aggregator:1.0.0
 ```
 

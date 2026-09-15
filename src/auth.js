@@ -3,7 +3,7 @@
 /**
  * 鉴权：
  *  - 管理后台：口令登录 → 内存 session（cookie）
- *  - 客户端 /v1/*：访问口令（门禁级，不做限流）
+ *  - 客户端面（/openai、/anthropic）：访问口令（门禁级，不做限流）
  */
 
 const nodeCrypto = require('crypto');
@@ -13,6 +13,9 @@ const logger = require('./logger');
 const net = require('./net');
 const settings = require('./store/settings');
 const accessKeys = require('./store/accessKeys');
+// 只为了把鉴权失败的错误体渲染成"当前方言"的样子（面文件不依赖 auth，不会循环 require）
+const openaiChatFace = require('./protocol/faces/openai-chat');
+const anthropicFace = require('./protocol/faces/anthropic');
 
 const SESSION_COOKIE = 'agg_session';
 const sessions = new Map();
@@ -147,28 +150,45 @@ function bearerToken(req) {
   return match ? match[1].trim() : '';
 }
 
-/** 客户端 /v1/* 鉴权 */
+/**
+ * 客户端面用的口令：两种写法都认 ——
+ *   `Authorization: Bearer <口令>`（OpenAI 那套，Claude Code 走 ANTHROPIC_AUTH_TOKEN 时也是这个）
+ *   `x-api-key: <口令>`          （Anthropic 那套）
+ * 两个面共用同一个口令，客户端爱用哪种用哪种。
+ */
+function clientToken(req) {
+  return bearerToken(req) || String(req.get('x-api-key') || '').trim();
+}
+
+/**
+ * 当前请求落在哪个"面"上（按挂载前缀判断，鉴权中间件跑在路由之前，那时 req.face 还没设）。
+ * 鉴权失败的错误体必须跟方言一致 —— Anthropic 客户端只认 `{type:'error',error:{...}}`。
+ */
+function clientFaceOf(req) {
+  return String(req.baseUrl || '').startsWith('/anthropic') ? anthropicFace : openaiChatFace;
+}
+
+/** 客户端面鉴权（/openai/* 与 /anthropic/*） */
 async function requireAccessKey(req, res, next) {
   try {
-    const token = bearerToken(req);
+    const face = clientFaceOf(req);
+    const token = clientToken(req);
     if (!token) {
       if (await settings.getBool('allow_no_key')) return next();
-      return res.status(401).json({
-        error: {
-          message: '缺少访问口令：请在 Authorization: Bearer <口令> 中提供（口令在后台「访问口令」页创建）',
-          type: 'invalid_request_error',
-          code: 'missing_api_key',
-        },
-      });
+      return face.sendError(
+        res,
+        401,
+        '缺少访问口令：请在 `Authorization: Bearer <口令>` 或 `x-api-key: <口令>` 里提供' +
+          '（口令在后台「密码」页创建）',
+        { code: 'missing_api_key' }
+      );
     }
     if (await accessKeys.verify(token)) return next();
     logger.warn('访问口令不匹配', { ip: req.ip, path: req.path });
-    return res.status(401).json({
-      error: { message: '访问口令不正确', type: 'invalid_request_error', code: 'invalid_api_key' },
-    });
+    return face.sendError(res, 401, '访问口令不正确', { code: 'invalid_api_key' });
   } catch (err) {
     logger.error('客户端鉴权异常', { error: err.message });
-    return res.status(500).json({ error: { message: '服务内部错误', type: 'server_error' } });
+    return clientFaceOf(req).sendError(res, 500, '服务内部错误', { code: 'server_error' });
   }
 }
 
@@ -186,4 +206,5 @@ module.exports = {
   publicSourceAllowed,
   requireAccessKey,
   bearerToken,
+  clientToken,
 };

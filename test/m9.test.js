@@ -129,7 +129,7 @@ async function adminApi(pathname, { method = 'GET', body } = {}) {
 }
 
 async function chat(body) {
-  const res = await fetch(`${baseUrl}/v1/chat/completions`, {
+  const res = await fetch(`${baseUrl}/openai/chat/completions`, {
     method: 'POST',
     headers: { 'content-type': 'application/json', authorization: `Bearer ${ACCESS_KEY}` },
     body: JSON.stringify(body),
@@ -139,7 +139,7 @@ async function chat(body) {
 }
 
 const readModels = async () =>
-  (await (await fetch(`${baseUrl}/v1/models`, { headers: { authorization: `Bearer ${ACCESS_KEY}` } })).json()).data;
+  (await (await fetch(`${baseUrl}/openai/models`, { headers: { authorization: `Bearer ${ACCESS_KEY}` } })).json()).data;
 const modelEntry = async (id) => (await readModels()).find((m) => m.id === id);
 
 /** 一张 1x1 的透明 PNG（data URL） */
@@ -235,7 +235,7 @@ test.after(async () => {
   fs.rmSync(tmpDir, { recursive: true, force: true });
 });
 
-test('M9-1) /v1/models：虚拟名字一律声明能收图，具体模型按标记声明', async () => {
+test('M9-1) /openai/models：虚拟名字一律声明能收图，具体模型按标记声明', async () => {
   const all = await modelEntry('All');
   assert.deepEqual(all.input_modalities, ['text', 'image'], 'All 的顶层要声明能收图');
   assert.deepEqual(all.architecture.input_modalities, ['text', 'image'], 'OpenRouter 那套写法也要有');

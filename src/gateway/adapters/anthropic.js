@@ -11,7 +11,7 @@
  *   - 流式是 `event: content_block_delta` 这种命名事件，要翻成 OpenAI 的 chunk
  */
 
-const { DEFAULT_MAX_TOKENS, firstLineOf, chunkOf, responseModel, positiveInt } = require('./common');
+const { DEFAULT_MAX_TOKENS, PROBE_MAX_TOKENS, firstLineOf, chunkOf, responseModel, positiveInt } = require('./common');
 
 const ANTHROPIC_VERSION = '2023-06-01';
 
@@ -231,7 +231,7 @@ function buildProbeRequest(provider, realModelId) {
     headers: headersFor(provider, false),
     payload: {
       model: realModelId,
-      max_tokens: 1,
+      max_tokens: PROBE_MAX_TOKENS,
       messages: [{ role: 'user', content: [{ type: 'text', text: 'ping' }] }],
     },
   };

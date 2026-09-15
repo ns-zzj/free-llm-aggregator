@@ -20,7 +20,28 @@
  * 这样 pipeSse 会把上游的 `event:` 之类的行丢掉，只输出我们生成的 `data:` 行。
  */
 
-const DEFAULT_MAX_TOKENS = 4096;
+/**
+ * 客户端**没传**输出上限时，我们替它填的值（只有 anthropic 上游用得上，
+ * 因为 Anthropic 的 `max_tokens` 是必填项；其它协议我们不填，走上游自己的默认）。
+ *
+ * 为什么是 16384：小了会把回答截断（用户原话："2026 都过去四分之三了，别拿 Claude 3 Haiku 说事"），
+ * 大了会超出上游的输出上限、被直接 400（更糟）。16384 对现在的 Claude 系
+ * （Sonnet 4.x 能到 64k、Opus 32k）都吃得下；真碰上后面挂老模型或小模型的便宜中转，
+ * 再把这个值改成「每个提供商可配」就行。
+ */
+const DEFAULT_MAX_TOKENS = 16384;
+
+/**
+ * 探测（「测试」按钮 / 倒计时探测）用的输出上限。
+ *
+ * 曾经是 1 或 16，想省点 token —— 但那是**上限**、不是计费量：探测发的是 "ping"，
+ * 模型回几个 token 就停了，给 1 还是给 1024 花掉的钱几乎一样（用户原话："这能有一厘钱不"）。
+ * 给太小反而有真麻烦：
+ *   - 推理模型的思考也吃这个预算（DeepSeek 的 Responses：`max_output_tokens` 含思维链），
+ *     16 会被思考吃光、正文一个字都不出；
+ *   - 有些实现干脆拒掉过小的上限（400），于是"模型其实可用"却被探测判成故障。
+ */
+const PROBE_MAX_TOKENS = 1024;
 
 function joinUrl(baseUrl, path) {
   return `${String(baseUrl).replace(/\/+$/, '')}${path.startsWith('/') ? path : `/${path}`}`;
@@ -69,4 +90,4 @@ function positiveInt(value, fallback) {
   return Number.isFinite(n) && n > 0 ? Math.floor(n) : fallback;
 }
 
-module.exports = { DEFAULT_MAX_TOKENS, joinUrl, firstLineOf, chunkOf, responseModel, positiveInt };
+module.exports = { DEFAULT_MAX_TOKENS, PROBE_MAX_TOKENS, joinUrl, firstLineOf, chunkOf, responseModel, positiveInt };

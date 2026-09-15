@@ -90,7 +90,7 @@ test('M6-1) 没有任何凭据时：服务能起来，后台接口说"需要首�
   assert.equal(status.json.needsSetup, true);
   assert.equal(status.json.allowedFromHere, true, '本机来源允许初始化');
 
-  const models = await fetch(`${baseUrl}/v1/models`, { headers: { authorization: 'Bearer whatever-key' } });
+  const models = await fetch(`${baseUrl}/openai/models`, { headers: { authorization: 'Bearer whatever-key' } });
   assert.equal(models.status, 401, '还没有下游口令 → /v1/* 拒绝');
 });
 
@@ -160,7 +160,7 @@ test('M6-3) 首次设置一次搞定管理密码 + 下游 apikey（留空自动�
   assert.equal(me.status, 200, '设置完应该已经登录（免去再登一次）');
 
   // 下游口令立刻能用
-  const models = await fetch(`${baseUrl}/v1/models`, { headers: { authorization: `Bearer ${done.json.accessKey}` } });
+  const models = await fetch(`${baseUrl}/openai/models`, { headers: { authorization: `Bearer ${done.json.accessKey}` } });
   assert.equal(models.status, 200, '刚设置的下游口令应能调用 /v1/*');
 
   // 管理密码立刻能登录
@@ -202,7 +202,7 @@ test('M6-4) reset-credentials 清空凭据 → 回到首次设置页（不用重
   const done = await adminApi('/setup', { method: 'POST', body: { adminPassword: 'second-pass-123', accessKey: 'my-key-123456' } });
   assert.equal(done.status, 201);
   assert.equal(done.json.accessKey, 'sk-my-key-123456', 'sk- 前缀由后端补上');
-  const models = await fetch(`${baseUrl}/v1/models`, { headers: { authorization: 'Bearer sk-my-key-123456' } });
+  const models = await fetch(`${baseUrl}/openai/models`, { headers: { authorization: 'Bearer sk-my-key-123456' } });
   assert.equal(models.status, 200);
 });
 
@@ -220,7 +220,7 @@ test('M6-5) 只重置管理密码（下游口令保留）：设置页给掩码�
   assert.equal(status.json.hasAccessKey, true);
   assert.equal(status.json.accessKeyMasked, `sk-${'*'.repeat(kept.replace(/^sk-/, '').length)}`, '给的是等长掩码，不是明文');
 
-  const before = await fetch(`${baseUrl}/v1/models`, { headers: { authorization: `Bearer ${kept}` } });
+  const before = await fetch(`${baseUrl}/openai/models`, { headers: { authorization: `Bearer ${kept}` } });
   assert.equal(before.status, 200, '重置管理密码不该影响下游调用');
 
   // 前端在「沿用」状态下干脆不发 accessKey 字段 → 后端必须原样保留
@@ -229,7 +229,7 @@ test('M6-5) 只重置管理密码（下游口令保留）：设置页给掩码�
   assert.equal(done.json.accessKeyChanged, false);
   assert.equal(done.json.accessKey, kept, '沿用原来的口令，并把明文回给后台（客户端还要用它）');
 
-  const after = await fetch(`${baseUrl}/v1/models`, { headers: { authorization: `Bearer ${kept}` } });
+  const after = await fetch(`${baseUrl}/openai/models`, { headers: { authorization: `Bearer ${kept}` } });
   assert.equal(after.status, 200, '留空提交绝不能顺手把下游口令换掉');
   assert.equal((await db('access_keys')).length, 1, '还是那一条，没多也没换');
 
@@ -243,13 +243,13 @@ test('M6-5) 只重置管理密码（下游口令保留）：设置页给掩码�
   assert.equal(changed.json.accessKeyChanged, true);
   assert.equal(changed.json.accessKey, 'sk-brand-new-999');
 
-  const oldGone = await fetch(`${baseUrl}/v1/models`, { headers: { authorization: `Bearer ${kept}` } });
+  const oldGone = await fetch(`${baseUrl}/openai/models`, { headers: { authorization: `Bearer ${kept}` } });
   assert.equal(oldGone.status, 401, '换过之后旧口令立即失效');
-  const newOk = await fetch(`${baseUrl}/v1/models`, { headers: { authorization: 'Bearer sk-brand-new-999' } });
+  const newOk = await fetch(`${baseUrl}/openai/models`, { headers: { authorization: 'Bearer sk-brand-new-999' } });
   assert.equal(newOk.status, 200);
 });
 
-test('M6-6) 管理端默认只允许内网来源：公网直连改不了设置，/v1 照常', async () => {
+test('M6-6) 管理端默认只允许内网来源：公网直连改不了设置，/openai 照常', async () => {
   const net = require('../src/net');
   const settings = require('../src/store/settings');
   const auth = require('../src/auth');
@@ -303,7 +303,7 @@ test('M6-6) 管理端默认只允许内网来源：公网直连改不了设置�
     assert.equal(status.json.accessKeyMasked, '', '也不泄露口令长度（掩码只在来源可信时才回）');
 
     // 客户端面完全不受影响
-    const models = await fetch(`${baseUrl}/v1/models`, { headers: { authorization: 'Bearer sk-brand-new-999' } });
+    const models = await fetch(`${baseUrl}/openai/models`, { headers: { authorization: 'Bearer sk-brand-new-999' } });
     assert.equal(models.status, 200, '/v1 照常公网可用');
 
     // 前端上报也一起挡（不然谁都能往服务端日志里灌东西）
@@ -420,7 +420,7 @@ test('M6-8) 首次设置不接受跨站表单 POST（审计 S1）：跨站 403�
   assert.equal(crossSite.status, 403, '跨站表单必须被拒');
   assert.equal((await crossSite.json()).error.code, 'cross_site_blocked');
   assert.equal((await adminApi('/setup/status')).json.needsSetup, true, '实例不能因此被初始化');
-  const attackerKey = await fetch(`${baseUrl}/v1/models`, { headers: { authorization: 'Bearer sk-attacker-known-key' } });
+  const attackerKey = await fetch(`${baseUrl}/openai/models`, { headers: { authorization: 'Bearer sk-attacker-known-key' } });
   assert.equal(attackerKey.status, 401, '攻击者那条 key 绝不能生效');
 
   // ② 只伪造 Origin（没有 Sec-Fetch-Site，老浏览器）：也要拒
@@ -524,7 +524,7 @@ test('M6-10) 登录失败会被限速（审计 M2）：连错 5 次锁 5 分钟�
   assert.ok(stillRetryAfter <= retryAfter, `被挡掉的请求不该让锁变长：${stillRetryAfter} vs ${retryAfter}`);
 });
 
-test('M6-11) /v1 吃同一套失败锁定：同 IP 连错 5 次锁 5 分钟，成功一次即解禁', async () => {
+test('M6-11) /openai 吃同一套失败锁定：同 IP 连错 5 次锁 5 分钟，成功一次即解禁', async () => {
   const net = require('../src/net');
   const accessKeys = require('../src/store/accessKeys');
   const key = (await accessKeys.primary()).key;
@@ -534,7 +534,7 @@ test('M6-11) /v1 吃同一套失败锁定：同 IP 连错 5 次锁 5 分钟，�
   const as = (ip) => {
     net.clientAddress = () => ip;
   };
-  const call = (bearer) => fetch(`${baseUrl}/v1/models`, { headers: { authorization: `Bearer ${bearer}` } });
+  const call = (bearer) => fetch(`${baseUrl}/openai/models`, { headers: { authorization: `Bearer ${bearer}` } });
   // 计数是在响应结束时做的，等它计完再断言，免得跟事件循环抢时间
   const settle = () => new Promise((resolve) => setTimeout(resolve, 30));
 

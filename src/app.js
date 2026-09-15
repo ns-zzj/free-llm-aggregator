@@ -6,6 +6,9 @@ const cookieParser = require('cookie-parser');
 
 const adminRoutes = require('./admin/routes');
 const v1Routes = require('./routes/v1');
+const anthropicRoutes = require('./routes/anthropic');
+const anthropicFace = require('./protocol/faces/anthropic');
+const openaiFace = require('./protocol/faces/openai-chat');
 const auth = require('./auth');
 const csrf = require('./csrf');
 const net = require('./net');
@@ -16,7 +19,7 @@ const logger = require('./logger');
 const clientLogLimiter = createWindowLimiter({ limit: 30, windowMs: 60 * 1000, globalLimit: 300 });
 
 /**
- * `/v1/*` 的失败锁定（用户 2026-09-15 要求："这是后台的，api 也一样"）。
+ * 客户端面（`/openai`、`/anthropic`）的失败锁定（用户 2026-09-15 要求："这是后台的，api 也一样"）。
  *
  * 为什么要有：客户端写错一个模型名、或者上游全挂的时候，它会在一个循环里一直撞 ——
  * 每个请求都要查库选源、写一行调用日志、往 stderr 打一行；不限速的话这些资源是白烧的。
@@ -37,12 +40,10 @@ function v1FailureGuardMiddleware(req, res, next) {
   if (!gate.allowed) {
     res.set('retry-after', String(gate.retryAfterSeconds));
     logger.warn('客户端请求被限速', { ip, path: req.path, retryAfterSeconds: gate.retryAfterSeconds });
-    return res.status(429).json({
-      error: {
-        message: `这个来源连续失败太多次了，请 ${gate.retryAfterSeconds} 秒后再试（成功一次即可立刻解除）`,
-        type: 'rate_limit_error',
-        code: 'too_many_failures',
-      },
+    // 错误体按当前方言渲染（Anthropic 客户端不认 OpenAI 的错误形状）
+    const face = String(req.baseUrl || '').startsWith('/anthropic') ? anthropicFace : openaiFace;
+    return face.sendError(res, 429, `这个来源连续失败太多次了，请 ${gate.retryAfterSeconds} 秒后再试（成功一次即可立刻解除）`, {
+      code: 'too_many_failures',
     });
   }
   res.on('finish', () => {
@@ -82,6 +83,26 @@ function securityHeaders(req, res, next) {
     );
   }
   next();
+}
+
+/**
+ * 协议族前缀后面的那一段 `/v1` 可有可无 —— 这里统一把它吃掉，后面就不用为
+ * "带 v1 的写法"再多写一遍路由。只认紧跟在 `/openai` / `/anthropic` 后面的那一段：
+ *
+ *   /openai/v1/models        → /openai/models
+ *   /openai/v1               → /openai
+ *   /openai/v1/v1/models     → /openai/v1/models（只吃一段，剩下的交给 404）
+ *   /anthropic/v1/messages   → /anthropic/messages
+ *
+ * 只改 req.url（Express 的路由匹配看它），不动 req.path 之外的任何东西；查询串原样带着。
+ */
+function stripOptionalV1(req, res, next) {
+  const q = req.url.indexOf('?');
+  const path = q === -1 ? req.url : req.url.slice(0, q);
+  const rest = q === -1 ? '' : req.url.slice(q);
+  const rewritten = path.replace(/^\/(openai|anthropic)\/v1(?=\/|$)/, '/$1');
+  if (rewritten !== path) req.url = rewritten + rest;
+  return next();
 }
 
 function createApp() {
@@ -138,8 +159,30 @@ function createApp() {
   });
 
   app.use('/api/admin', adminRoutes);
-  app.use('/v1', v1FailureGuardMiddleware);
-  app.use('/v1', v1Routes);
+
+  // ============================================================ 客户端面（协议族前缀）
+  /**
+   * 客户端地址按**协议族**分前缀（2.0.0）：
+   *
+   *   /openai/...      说 OpenAI 方言：models、chat/completions、responses、假数据端点
+   *   /anthropic/...   说 Anthropic 方言：messages、models
+   *
+   * 地址里那一段 `/v1` **可有可无**（客户端爱加不加，两种写法都认）：
+   *   /openai/models  ==  /openai/v1/models
+   *   /anthropic/messages  ==  /anthropic/v1/messages
+   *
+   * 为什么不再用「全都挂在 /v1 下」：下游协议一多，`/v1/messages`、`/v1/chat/completions`、
+   * `/v1/responses` 就只能靠路径名去猜对方说的是哪套方言，加端点也越来越别扭。
+   * 前缀分开之后，"填哪个地址"就等于"声明我说哪种话"，README 里也更好讲。
+   *
+   * 旧地址（裸 `/v1/*`）**刻意不保留**：项目刚发布、没有真实用户，留着只会让文档和代码
+   * 里多出一套要解释的兼容规则（用户 2026-09-15 裁定）。
+   */
+  app.use(stripOptionalV1);
+  app.use('/openai', v1FailureGuardMiddleware);
+  app.use('/openai', v1Routes);
+  app.use('/anthropic', v1FailureGuardMiddleware);
+  app.use('/anthropic', anthropicRoutes);
 
   // 健康检查（容器 healthcheck 用，无需鉴权）
   app.get('/healthz', (req, res) => res.json({ ok: true, ts: Date.now() }));
@@ -147,14 +190,35 @@ function createApp() {
   // 浏览器会顺手请求 favicon，直接给个空响应，避免日志里出现无意义的 404
   app.get('/favicon.ico', (req, res) => res.status(204).end());
 
-  // 未实现的 /v1/* 端点：统一 404（OpenAI 格式），避免客户端拿到奇怪响应
-  app.use('/v1', (req, res) => {
+  // 前缀根路径：把这一族下面有什么端点数出来（填错地址时一眼能看出原因）
+  app.get('/openai', (req, res) => {
+    res.json({
+      object: 'list',
+      endpoints: ['models', 'models/<名字>', 'chat/completions', 'responses', 'usage', 'billing/subscription', 'credits'],
+      note: '地址里的 /v1 可有可无',
+    });
+  });
+
+  app.get('/anthropic', (req, res) => {
+    res.json({
+      endpoints: ['messages', 'models'],
+      note: 'Anthropic 方言；地址里的 /v1 可有可无',
+    });
+  });
+
+  // 未实现的 /openai/* 端点：统一 404（OpenAI 格式），避免客户端拿到奇怪响应
+  app.use('/openai', (req, res) => {
     res.status(404).json({
       error: {
-        message: `未实现该端点：${req.method} /v1${req.path}`,
+        message: `未实现该端点：${req.method} /openai${req.path}`,
         type: 'invalid_request_error',
       },
     });
+  });
+
+  // 未实现的 /anthropic/* 端点：按 Anthropic 的错误形状回（客户端才认）
+  app.use('/anthropic', (req, res) => {
+    anthropicFace.sendError(res, 404, `未实现该端点：${req.method} /anthropic${req.path}`, { type: 'not_found_error' });
   });
 
   // 管理后台页面（原生 HTML/CSS/JS）

@@ -237,7 +237,7 @@ async function resolveCandidates(name) {
   return { mode: 'group', candidates, reason: '' };
 }
 
-/** `/v1/models` 里发布每个组 */
+/** `/openai/models` 与 `/anthropic/models` 里发布每个组 */
 async function publishedList() {
   const groups = await db('model_groups').orderBy('id', 'asc');
   return groups.map((g) => ({ id: naming.groupName(g.name), createdAt: g.created_at }));

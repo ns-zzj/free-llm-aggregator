@@ -61,6 +61,25 @@ const ADAPTER_META = {
   },
 };
 
+/**
+ * 后端注册表返回的协议清单（`GET /api/admin/adapters`），登录后拉一次。
+ * 下拉框以它为准 —— 这里只是**兜底**：接口拿不到时用上面那份硬编码的，界面不至于空掉。
+ */
+let ADAPTER_LIST = [];
+
+function adapterOptions() {
+  const list = ADAPTER_LIST.length
+    ? ADAPTER_LIST.map((a) => [a.id, a.label || a.id])
+    : Object.entries(ADAPTER_META).map(([id, meta]) => [id, meta.label]);
+  return Object.fromEntries(list);
+}
+
+function adapterMeta(id) {
+  const fromServer = ADAPTER_LIST.find((a) => a.id === id);
+  if (fromServer) return fromServer;
+  return ADAPTER_META[id] || {};
+}
+
 // 模型运行时状态（主页与编辑页统一用这四种）
 const RUNTIME_LABELS = { enabled: '启用', disabled: '禁用', error: '故障', rate_limited: '限速' };
 const RUNTIME_BADGE_CLASS = { enabled: 'ok', disabled: '', error: 'err', rate_limited: 'blue' };
@@ -76,9 +95,11 @@ function runtimeBadge(model) {
   });
 }
 
-/** 单个模型的「测试」按钮（主页和编辑弹层共用）——测试按真实调用处理 */
+/** 单个模型的「测试」按钮（主页和编辑弹层共用）——测试按真实调用处理。
+ *  type: 'button' 是必须的：编辑弹层里这块在 <form> 内，不写 type 的按钮会变成提交表单。 */
 function modelTestButton(providerId, model, onDone) {
   return h('button', {
+    type: 'button',
     class: 'tiny',
     text: '测试',
     onclick: async (event) => {
@@ -360,11 +381,61 @@ $('#setup-key-change').addEventListener('click', () => {
   if (setupKeyState.keeps) applySetupKeyView($('#setup-access-key').readOnly ? 'edit' : 'keep');
 });
 
+/**
+ * 右上角的"客户端填哪个地址"（用户 2026-09-15 要求）：
+ * 按钮上写**客户端方言的名字**（右上角横着放得下，就写全），点一下复制完整 URL。
+ * 路径与适用客户端写在 title 里（用户要求：多写点也没事）。
+ */
+function renderEndpoints() {
+  const box = $('#endpoints');
+  if (!box) return;
+  box.textContent = '';
+  const origin = location.origin;
+  const entries = [
+    [
+      '/openai',
+      'OpenAI (支持Responses)',
+      'OpenAI 方言：chat/completions 与 responses 两个端点都走这个地址（OpenAI SDK、新版 SDK 默认的 Responses、Cherry Studio 这类能填自定义 OpenAI 地址的工具）。models、usage 也在它下面。',
+    ],
+    [
+      '/anthropic',
+      'Anthropic',
+      'Anthropic 方言：messages 端点走这个地址（Claude Code、Anthropic SDK）。models 同样在它下面，模型名和 OpenAI 那边是同一套。',
+    ],
+  ];
+  for (const [path, label, tip] of entries) {
+    box.appendChild(
+      h('button', {
+        type: 'button',
+        text: label,
+        title: `${tip}\n\nURL：${origin}${path}\n（点一下复制）`,
+        onclick: async () => {
+          const url = `${origin}${path}`;
+          const ok = await copyText(url);
+          alert(ok ? `已复制 ${label}：\n${url}` : `浏览器不让自动复制（可能是 http 访问）：\n${url}`);
+        },
+      })
+    );
+  }
+  // 标签放到按钮**右边**（用户 2026-09-15）：这样它正好把"客户端地址"和「退出」隔开，
+  // 免得两个都像按钮、手一滑点到退出
+  box.appendChild(h('span', { class: 'endpoints-label', text: '客户端地址' }));
+}
+
 function showApp() {
   $('#login-view').hidden = true;
   $('#setup-view').hidden = true;
   $('#app-view').hidden = false;
   switchTab('overview');
+  renderEndpoints();
+  // 上游协议清单（「提供商」表单的下拉框用它）。拿不到就用内置兜底那份，界面不受影响
+  api('/adapters')
+    .then((res) => {
+      ADAPTER_LIST = (res && res.adapters) || [];
+    })
+    .catch(() => {
+      ADAPTER_LIST = [];
+    });
 }
 
 $('#setup-form').addEventListener('submit', async (event) => {
@@ -380,13 +451,23 @@ $('#setup-form').addEventListener('submit', async (event) => {
       body: { adminPassword: $('#setup-password').value, accessKey },
     });
     $('#setup-password').value = '';
-    const kept = !result.accessKeyChanged;
+    // 三种情况要说清（原来只分"改没改"，于是把"新生成"说成"沿用原来的"）：
+    //   changed   用户自己填了口令
+    //   generated 留空 + 库里本来没有 → 自动生成了一条
+    //   kept      留空 + 库里本来就有 → 真的沿用了
+    const action = result.accessKeyAction || (result.accessKeyChanged ? 'changed' : 'kept');
+    const keyLabel =
+      action === 'generated'
+        ? '已自动生成一条下游 apikey：'
+        : action === 'changed'
+          ? '新的下游请求 apikey：'
+          : '下游 apikey 沿用原来的：';
     const copied = result.accessKey ? await copyText(result.accessKey) : false;
     const lines = ['设置完成。'];
     if (result.accessKey) {
       lines.push(
         '',
-        kept ? '下游 apikey 沿用原来的：' : '新的下游请求 apikey：',
+        keyLabel,
         result.accessKey,
         '',
         copied ? '（已复制到剪贴板；之后可在「密码」页查看或更改）' : '（复制失败，请手动抄下来；之后可在「密码」页查看或更改）'
@@ -602,24 +683,38 @@ function visionBadge(model) {
 
 /**
  * 「图片」开关（提供商弹层的模型列表里）：能不能看图片由用户自己标，
- * 因为上游不会告诉我们，而且默认标成"能看"会让图片被静默丢掉（见 src/routes/v1.js 的说明）。
+ * 因为上游不会告诉我们，而且默认标成"能看"会让图片被静默丢掉（见 src/protocol/faces/openai-chat.js 的说明）。
+ *
+ * 用**滑动开关**（不是按钮）：一眼能看出"这里可以点"，而且当前状态就写在开关位置上
+ * （用户 2026-09-15 的反馈：原来那个按钮长得像状态标签，不知道能点）。
+ * 顺带一个隐患也一起躲了：这个弹层是一个 <form>，里面的 <button> 不写 type 就默认是
+ * submit —— 原来点一下"图片"会把整个提供者表单提交掉，窗口就关了。
+ * checkbox 不参与表单提交，天然没这个问题。
  */
 function visionToggle(model, onDone) {
-  return h('button', {
-    class: model.supportsVision ? 'tiny' : 'tiny muted',
-    text: model.supportsVision ? '支持图片' : '不支持图片',
-    title: model.supportsVision
-      ? '当前：带图片的请求会走这个模型。点一下改成"不支持"'
-      : '当前：带图片的请求不会走它。点一下标成"支持图片"',
-    onclick: async () => {
-      try {
-        await api(`/models/${model.id}`, { method: 'PATCH', body: { supportsVision: !model.supportsVision } });
-        await onDone();
-      } catch (err) {
-        alert(err.message);
-      }
-    },
+  const box = h('input', { type: 'checkbox', 'aria-label': '支持图片理解' });
+  box.checked = !!model.supportsVision;
+  box.addEventListener('change', async () => {
+    box.disabled = true;
+    try {
+      await api(`/models/${model.id}`, { method: 'PATCH', body: { supportsVision: box.checked } });
+      await onDone();
+    } catch (err) {
+      box.checked = !box.checked; // 改回去，别让界面显示一个没保存成功的状态
+      box.disabled = false;
+      alert(err.message);
+    }
   });
+  return h(
+    'label',
+    {
+      class: 'switch',
+      title: model.supportsVision
+        ? '开：带图片的请求会走这个模型。点一下关掉'
+        : '关：带图片的请求不会走它。点一下打开',
+    },
+    [box, h('span', { class: 'switch-track' }, [h('span', { class: 'switch-knob' })])]
+  );
 }
 
 function modelEntryRow(m) {
@@ -809,6 +904,7 @@ async function renderModelGroups() {
         h('h2', { style: 'margin:0', text: '模型组' }),
         h('div', { class: 'spacer' }),
         h('button', {
+          type: 'button',
           class: 'primary',
           text: '＋ 添加模型组',
           onclick: async () => {
@@ -870,7 +966,7 @@ function groupPanel(group, allModels, modelById) {
     groupAddRow(group, allModels),
   ]);
 
-  const arrow = h('button', { class: 'tiny group-arrow', text: open ? '▾' : '▸', title: '展开/收起' });
+  const arrow = h('button', { type: 'button', class: 'tiny group-arrow', text: open ? '▾' : '▸', title: '展开/收起' });
   arrow.addEventListener('click', () => {
     body.hidden = !body.hidden;
     arrow.textContent = body.hidden ? '▸' : '▾';
@@ -885,6 +981,7 @@ function groupPanel(group, allModels, modelById) {
       h('div', { class: 'spacer' }),
       h('span', { class: 'muted small', text: `${group.items.length} 个模型` }),
       h('button', {
+        type: 'button',
         class: 'tiny danger',
         text: '删除该组',
         onclick: async () => {
@@ -938,6 +1035,7 @@ function groupItemRow(group, item, modelById) {
     h('td', {}, [model ? runtimeBadge(model) : h('span', { class: 'muted small', text: '已删除' })]),
     h('td', {}, [
       h('button', {
+        type: 'button',
         class: 'tiny danger',
         text: '删除',
         onclick: async () => {
@@ -970,6 +1068,7 @@ function groupAddRow(group, allModels) {
     )
   );
   const add = h('button', {
+    type: 'button',
     text: '＋ 添加这个模型',
     onclick: async () => {
       try {
@@ -1010,7 +1109,7 @@ async function renderProviders() {
       h('div', { class: 'row' }, [
         h('h2', { style: 'margin:0', text: '提供商' }),
         h('div', { class: 'spacer' }),
-        h('button', { class: 'primary', text: '＋ 添加提供商', onclick: () => openProviderModal(null) }),
+        h('button', { type: 'button', class: 'primary', text: '＋ 添加提供商', onclick: () => openProviderModal(null) }),
       ]),
       h('p', {
         class: 'hint',
@@ -1062,6 +1161,7 @@ function providerRow(p) {
       h('div', { class: 'row' }, [
         h('button', { class: 'tiny', text: '编辑', onclick: () => openProviderModal(p) }),
         h('button', {
+          type: 'button',
           class: 'tiny',
           text: '立即探测',
           onclick: async (event) => {
@@ -1083,6 +1183,7 @@ function providerRow(p) {
         }),
         p.enabled && state && state.status !== 'available'
           ? h('button', {
+            type: 'button',
               class: 'tiny',
               text: '恢复可用',
               onclick: async () => {
@@ -1096,6 +1197,7 @@ function providerRow(p) {
             })
           : null,
         h('button', {
+          type: 'button',
           class: 'tiny danger',
           text: '删除',
           onclick: async () => {
@@ -1149,7 +1251,7 @@ function openProviderModal(provider) {
   const apiKeyLabel = isEdit && provider.hasApiKey ? `apiKey（已保存 ${provider.apiKeyMasked}）` : 'apiKey';
 
   const adapterSelect = selectOf(
-    Object.fromEntries(Object.entries(ADAPTER_META).map(([id, meta]) => [id, meta.label])),
+    adapterOptions(),
     isEdit ? provider.adapter : 'openai-compatible'
   );
   const accountIdInput = h('input', {
@@ -1191,7 +1293,7 @@ function openProviderModal(provider) {
     policyHint.hidden = !(isFree && policy === 'keep_trying');
 
     // 适配器相关：需要账号 ID 的协议才显示那一格；baseUrl 占位符跟着变
-    const meta = ADAPTER_META[adapterSelect.value] || {};
+    const meta = adapterMeta(adapterSelect.value);
     accountIdField.hidden = !meta.needsAccountId;
     baseUrlInput.placeholder = meta.baseUrlHint || '';
     // 新建时切到自带固定地址的协议（如 Cloudflare），自动把 baseUrl 填好
@@ -1242,6 +1344,8 @@ function openProviderModal(provider) {
 
   form.addEventListener('submit', async (event) => {
     event.preventDefault();
+    // 只认"这个表单自己"的提交：模型区里还有个内层 form，它的 submit 会冒泡上来
+    if (event.target !== form) return;
     const payload = {
       name: nameInput.value.trim(),
       baseUrl: baseUrlInput.value.trim(),
@@ -1317,6 +1421,9 @@ async function renderModalModelList(section, provider) {
   ]);
   addForm.addEventListener('submit', async (event) => {
     event.preventDefault();
+    // 这个内层 form 在外层「提供者表单」里面，而 submit 事件会冒泡 ——
+    // 不拦住的话，点「添加模型」会把整个提供者表单也提交掉（保存 + 关窗口）。
+    event.stopPropagation();
     try {
       await api(`/providers/${provider.id}/models`, {
         method: 'POST',
@@ -1340,6 +1447,7 @@ async function renderModalModelList(section, provider) {
         h('div', { class: 'row' }, [
           modelTestButton(provider.id, m, () => renderModalModelList(section, provider)),
           h('button', {
+            type: 'button',
             class: 'tiny',
             text: m.enabled ? '禁用' : '启用',
             onclick: async () => {
@@ -1352,6 +1460,7 @@ async function renderModalModelList(section, provider) {
             },
           }),
           h('button', {
+            type: 'button',
             class: 'tiny danger',
             text: '删除',
             onclick: async () => {
@@ -1483,6 +1592,7 @@ async function renderPasswords() {
       h('div', { class: 'row' }, [
         adminBox,
         h('button', {
+          type: 'button',
           class: 'tiny',
           text: '更改密码',
           onclick: () =>
@@ -1517,6 +1627,7 @@ async function renderPasswords() {
   });
 
   const copyBtn = h('button', {
+    type: 'button',
     class: 'tiny',
     text: '复制',
     disabled: canDisplay ? null : 'disabled',
@@ -1527,6 +1638,7 @@ async function renderPasswords() {
   });
 
   const changeBtn = h('button', {
+    type: 'button',
     class: 'tiny primary',
     text: '更改 apikey',
     onclick: () =>
@@ -1554,8 +1666,44 @@ async function renderPasswords() {
           (hasKey && !canDisplay ? ' 这条已经解不开了（老版本的数据，或者 APP_SECRET 换过）—— 它现在也校验不过，点「更改 apikey」生成新的。' : ''),
       }),
       me.accessKeyCount === 0
-        ? h('p', { class: 'error-text', text: '当前没有任何口令，/v1/* 会拒绝所有请求 —— 点「更改 apikey」设一个。' })
+        ? h('p', { class: 'error-text', text: '当前没有任何口令，/openai/* 会拒绝所有请求 —— 点「更改 apikey」设一个。' })
         : null,
+    ])
+  );
+
+  // ③ 客户端地址（2.0.0 起按协议族分前缀，用户不用去猜该填哪个）
+  const origin = location.origin;
+  const endpoints = [
+    ['OpenAI 方言', `${origin}/openai`, 'chat/completions、responses、models（OpenAI SDK、Cherry Studio、各种自定义 OpenAI 地址的工具）'],
+    ['Anthropic 方言', `${origin}/anthropic`, 'messages、models（Claude Code、Anthropic SDK）'],
+  ];
+  const rows = endpoints.map(([label, url, hint]) => {
+    const box = h('input', { type: 'text', class: 'pw-input', value: url, readonly: 'readonly' });
+    return h('div', { class: 'block' }, [
+      h('div', { class: 'row' }, [
+        h('span', { class: 'muted small', style: 'min-width:110px', text: label }),
+        box,
+        h('button', {
+          type: 'button',
+          class: 'tiny',
+          text: '复制',
+          onclick: async () => {
+            const ok = await copyText(url);
+            alert(ok ? `已复制：\n${url}` : `浏览器不让自动复制（可能是 http 访问）：\n${url}`);
+          },
+        }),
+      ]),
+      h('p', { class: 'hint', text: `${hint}。地址里的 /v1 加不加都行。` }),
+    ]);
+  });
+  container.appendChild(
+    h('div', { class: 'panel' }, [
+      h('h2', { text: '客户端填哪个地址' }),
+      ...rows,
+      h('p', {
+        class: 'hint',
+        text: '按客户端说的"方言"选一个就行 —— 和上游是哪家协议无关，网关自己翻。',
+      }),
     ])
   );
 }
@@ -1675,7 +1823,7 @@ async function renderSettings() {
   const form = h('form', { class: 'panel' }, [
     h('h2', { text: '设置' }),
     h('div', { class: 'block' }, [
-      h('label', { class: 'inline' }, [allowNoKey, '允许不带口令访问 /v1/*（仅本机/内网建议打开）']),
+      h('label', { class: 'inline' }, [allowNoKey, '允许不带口令访问 /openai/*（仅本机/内网建议打开）']),
     ]),
     h('div', { class: 'block' }, [
       h('span', { text: '管理端来源限制' }),
@@ -1689,7 +1837,7 @@ async function renderSettings() {
     h('div', { class: 'block' }, [
       h('label', { class: 'inline' }, [
         fakeEndpoints,
-        '启用假数据端点（/v1/usage、/v1/billing/subscription、/v1/credits）',
+        '启用假数据端点（/openai/usage、/openai/billing/subscription、/openai/credits）',
       ]),
     ]),
     h('label', { class: 'block' }, [h('span', { text: '倒计时检测次数上限（0 = 一直检测）' }), probeMax]),

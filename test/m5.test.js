@@ -358,7 +358,7 @@ async function adminApi(pathname, { method = 'GET', body } = {}) {
 }
 
 async function chat(body) {
-  const res = await fetch(`${baseUrl}/v1/chat/completions`, {
+  const res = await fetch(`${baseUrl}/openai/chat/completions`, {
     method: 'POST',
     headers: { 'content-type': 'application/json', authorization: `Bearer ${ACCESS_KEY}` },
     body: JSON.stringify(body),

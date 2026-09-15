@@ -2,7 +2,7 @@
 
 /**
  * M4 端到端测试：对外模型名规则 + All 自动换源
- *   - /v1/models 只发布 All 与「带类别前缀」的模型名（Free/ 免费、Pay/ 付费）
+ *   - /openai/models 只发布 All 与「带类别前缀」的模型名（Free/ 免费、Pay/ 付费）
  *   - All：按「All模型顺序」页的顺序自动选，失败自动换下一个（免费在前、付费兜底），全挂统一 503
  *   - 指定来源（`Free/来源id/模型名`、`Pay/来源id/模型名`）：不换源，本机限速报 429，上游错误原样转发
  *   - 不带来源 / 来源不存在 / PAY 用错 → 404 并提示正确格式
@@ -94,7 +94,7 @@ async function adminApi(pathname, { method = 'GET', body } = {}) {
 }
 
 async function chat(body) {
-  const res = await fetch(`${baseUrl}/v1/chat/completions`, {
+  const res = await fetch(`${baseUrl}/openai/chat/completions`, {
     method: 'POST',
     headers: { 'content-type': 'application/json', authorization: `Bearer ${ACCESS_KEY}` },
     body: JSON.stringify(body),
@@ -167,8 +167,8 @@ test.after(async () => {
 
 // ------------------------------------------------------------------ 用例
 
-test('M4-1) /v1/models 发布 All + 带类别前缀的模型名（Free/ 免费、Pay/ 付费）', async () => {
-  const res = await fetch(`${baseUrl}/v1/models`, { headers: { authorization: `Bearer ${ACCESS_KEY}` } });
+test('M4-1) /openai/models 发布 All + 带类别前缀的模型名（Free/ 免费、Pay/ 付费）', async () => {
+  const res = await fetch(`${baseUrl}/openai/models`, { headers: { authorization: `Bearer ${ACCESS_KEY}` } });
   assert.equal(res.status, 200);
   const json = await res.json();
   assert.deepEqual(
@@ -181,7 +181,7 @@ test('M4-1) /v1/models 发布 All + 带类别前缀的模型名（Free/ 免费�
   assert.equal(json.data[2].owned_by, 'Pay/paid-b');
 
   // 单个查询也要支持带斜杠的名字
-  const one = await fetch(`${baseUrl}/v1/models/Pay/paid-b/m-x`, {
+  const one = await fetch(`${baseUrl}/openai/models/Pay/paid-b/m-x`, {
     headers: { authorization: `Bearer ${ACCESS_KEY}` },
   });
   assert.equal(one.status, 200, 'Pay/... 这种带斜杠的名字也要能查');
@@ -389,7 +389,7 @@ test('M4-10) 日志拆分规则：模型名带斜杠的上游名不会被误当�
 
 test('M4-11) All 会发布上下文长度（默认 256000、后台可改、填 0 不发布）', async () => {
   const readModels = async () =>
-    (await (await fetch(`${baseUrl}/v1/models`, { headers: { authorization: `Bearer ${ACCESS_KEY}` } })).json()).data;
+    (await (await fetch(`${baseUrl}/openai/models`, { headers: { authorization: `Bearer ${ACCESS_KEY}` } })).json()).data;
 
   const initial = await readModels();
   const virtual = initial.find((m) => m.id === 'All');
@@ -406,7 +406,7 @@ test('M4-11) All 会发布上下文长度（默认 256000、后台可改、填 0
 
   // 单查也要一致
   const one = await (
-    await fetch(`${baseUrl}/v1/models/All`, { headers: { authorization: `Bearer ${ACCESS_KEY}` } })
+    await fetch(`${baseUrl}/openai/models/All`, { headers: { authorization: `Bearer ${ACCESS_KEY}` } })
   ).json();
   assert.equal(one.context_length, 131072);
 

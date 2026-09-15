@@ -109,6 +109,23 @@ header {
 
 #tabs button.active { background: var(--panel-2); color: var(--text); border-color: var(--border); }
 
+/* 右上角的"客户端填哪个地址"（2.0.0）：两片可点的地址，点了复制完整 URL。
+   放在这里是因为它是每天要用一次的信息，埋在「密码」页里太深。 */
+.endpoints { display: flex; align-items: center; gap: 6px; flex-wrap: wrap; }
+/* 标签在按钮右边，当作"客户端地址"和「退出」之间的分隔（用户要求：别误触退出） */
+.endpoints .endpoints-label { color: var(--muted); font-size: 12px; margin: 0 10px 0 6px; }
+.endpoints button {
+  font-family: ui-monospace, Consolas, monospace;
+  font-size: 12px;
+  padding: 4px 8px;
+  background: var(--panel-2);
+  color: var(--text);
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  cursor: pointer;
+}
+.endpoints button:hover { border-color: var(--accent); color: var(--accent); }
+
 main { padding: 20px; max-width: 1180px; margin: 0 auto; }
 section[hidden] { display: none; }
 
@@ -162,6 +179,35 @@ input, select, textarea {
 }
 
 input[type="checkbox"] { width: auto; }
+
+/* 滑动开关（用户 2026-09-15 要求）：一眼能看出"这里可以点"，状态就在开关位置上。
+   结构：<label class="switch"><input type="checkbox"><span class="switch-track"><span class="switch-knob"></span></span></label> */
+.switch { display: inline-flex; align-items: center; cursor: pointer; line-height: 1; }
+.switch input { position: absolute; opacity: 0; width: 0; height: 0; }
+.switch-track {
+  position: relative;
+  display: inline-block;
+  width: 40px;
+  height: 22px;
+  border-radius: 22px;
+  background: var(--panel-2);
+  border: 1px solid var(--border);
+  transition: background 0.15s ease, border-color 0.15s ease;
+}
+.switch-knob {
+  position: absolute;
+  top: 2px;
+  left: 2px;
+  width: 16px;
+  height: 16px;
+  border-radius: 50%;
+  background: var(--muted);
+  transition: transform 0.15s ease, background 0.15s ease;
+}
+.switch input:checked + .switch-track { background: rgba(76, 141, 255, 0.35); border-color: var(--accent); }
+.switch input:checked + .switch-track .switch-knob { transform: translateX(18px); background: var(--accent); }
+.switch input:focus-visible + .switch-track { outline: 2px solid var(--accent); outline-offset: 2px; }
+.switch input:disabled + .switch-track { opacity: 0.5; }
 label.block { display: block; margin-bottom: 10px; }
 label.block > span { display: block; color: var(--muted); margin-bottom: 4px; font-size: 12px; }
 label.inline { display: inline-flex; align-items: center; gap: 6px; }

@@ -9,7 +9,7 @@
  *   - 组名就是个普通字符串（随手改，没有"保存"）；删组不影响模型；删模型要顺手清掉组里的条目
  *
  * 覆盖：
- *   - /v1/models 里发布 All / Free / Pay / ModelGroup，虚拟名字带上下文长度
+ *   - /openai/models 里发布 All / Free / Pay / ModelGroup，虚拟名字带上下文长度
  *   - 请求 ModelGroup/<组名>：按组内顺序换源（先免费后付费也照样按组里排的来）
  *   - 组内顺序真的生效（拖拽排序后换源顺序跟着变）
  *   - 组内可以混免费与付费
@@ -100,7 +100,7 @@ async function adminApi(pathname, { method = 'GET', body } = {}) {
 }
 
 async function chat(body) {
-  const res = await fetch(`${baseUrl}/v1/chat/completions`, {
+  const res = await fetch(`${baseUrl}/openai/chat/completions`, {
     method: 'POST',
     headers: { 'content-type': 'application/json', authorization: `Bearer ${ACCESS_KEY}` },
     body: JSON.stringify(body),
@@ -110,7 +110,7 @@ async function chat(body) {
 }
 
 const readModels = async () =>
-  (await (await fetch(`${baseUrl}/v1/models`, { headers: { authorization: `Bearer ${ACCESS_KEY}` } })).json()).data;
+  (await (await fetch(`${baseUrl}/openai/models`, { headers: { authorization: `Bearer ${ACCESS_KEY}` } })).json()).data;
 
 async function listGroups() {
   const res = await adminApi('/model-groups');
@@ -192,7 +192,7 @@ test.after(async () => {
 
 // ------------------------------------------------------------------ 用例
 
-test('M7-1) /v1/models：发布的四类名字都带类别前缀，模型的显示名/别名字段已经不存在', async () => {
+test('M7-1) /openai/models：发布的四类名字都带类别前缀，模型的显示名/别名字段已经不存在', async () => {
   const data = await readModels();
   const ids = data.map((m) => m.id);
   assert.deepEqual(
@@ -292,9 +292,9 @@ test('M7-3) 组内加模型/删模型 + 组对外发布（带上下文长度）'
   assert.equal(fresh.items[0].publishedId, 'Free/free-a/m1');
   assert.equal(fresh.items[0].providerName, '免费来源 A');
 
-  // /v1/models 里发布了这个组，而且带上下文长度（客户端靠它决定何时压缩上下文）
+  // /openai/models 里发布了这个组，而且带上下文长度（客户端靠它决定何时压缩上下文）
   const published = (await readModels()).find((m) => m.id === 'ModelGroup/主链路');
-  assert.ok(published, '模型组要发布到 /v1/models');
+  assert.ok(published, '模型组要发布到 /openai/models');
   assert.equal(published.context_length, 256000);
   assert.equal(published.context_window, 256000);
   assert.equal(published.owned_by, 'llm-aggregator');

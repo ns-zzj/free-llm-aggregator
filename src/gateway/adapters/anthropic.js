@@ -1,7 +1,7 @@
 'use strict';
 
 /**
- * anthropic：Anthropic Messages API（`POST {baseUrl}/v1/messages`）。
+ * anthropic：Anthropic Messages API（`POST {baseUrl}/messages`，baseUrl 含 `/v1`）。
  *
  * 和 OpenAI 的差异（我们负责翻译，客户端只看 OpenAI 形状）：
  *   - 鉴权用 `x-api-key`（同时带上 Authorization，兼容那些"Anthropic 兼容"中转）
@@ -15,10 +15,12 @@ const { DEFAULT_MAX_TOKENS, PROBE_MAX_TOKENS, firstLineOf, chunkOf, responseMode
 
 const ANTHROPIC_VERSION = '2023-06-01';
 
-/** baseUrl 填 `https://api.anthropic.com` 或 `.../v1` 都行 */
+/**
+ * baseUrl 是**完整前缀**（`https://api.anthropic.com/v1`），我们只在后面拼 `/messages`，
+ * 不替用户补 `/v1`（用户 2026-09-15 定：补不补由用户自己看，后台那一格下面会显示拼出来的地址）。
+ */
 function messagesUrl(provider) {
-  const base = String(provider.baseUrl).replace(/\/+$/, '');
-  return /\/v\d+$/.test(base) ? `${base}/messages` : `${base}/v1/messages`;
+  return `${String(provider.baseUrl).replace(/\/+$/, '')}/messages`;
 }
 
 function headersFor(provider, stream) {

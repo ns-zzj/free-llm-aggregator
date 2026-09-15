@@ -1247,6 +1247,8 @@ function openProviderModal(provider) {
     placeholder: 'https://integrate.api.nvidia.com/v1',
     value: isEdit ? provider.baseUrl : '',
   });
+  // 最终打出去的地址：baseUrl 由你填**完整前缀**，我们只在后面拼端点，不替用户补 /v1
+  const baseUrlPreview = h('p', { class: 'field-note mono' });
   const apiKeyInput = h('input', { type: 'password', placeholder: '留空则不变' });
   const apiKeyLabel = isEdit && provider.hasApiKey ? `apiKey（已保存 ${provider.apiKeyMasked}）` : 'apiKey';
 
@@ -1300,11 +1302,26 @@ function openProviderModal(provider) {
     if (!isEdit && meta.defaultBaseUrl && !String(baseUrlInput.value).trim()) {
       baseUrlInput.value = meta.defaultBaseUrl;
     }
+
+    // 实际请求地址预览：baseUrl 原样当前缀，只补端点。不知道的协议留空（宁可不显示，也别写错）
+    const base = baseUrlInput.value.trim().replace(/\/+$/, '');
+    const ACCOUNT = accountIdInput.value.trim() || '{账号 ID}';
+    const path =
+      {
+        'openai-compatible': '/chat/completions',
+        'openai-responses': '/responses',
+        anthropic: '/messages',
+        'cloudflare-workers-ai': `/accounts/${ACCOUNT}/ai/run/{模型 id}`,
+      }[adapterSelect.value] || '';
+    baseUrlPreview.textContent = base && path ? `实际请求：${base}${path}` : '';
   }
   isPaidInput.addEventListener('change', refreshHints);
   rateInput.addEventListener('input', refreshHints);
   policySelect.addEventListener('change', refreshHints);
   adapterSelect.addEventListener('change', refreshHints);
+  // 改地址 / 改账号 ID 也要跟着刷新那行「实际请求」
+  baseUrlInput.addEventListener('input', refreshHints);
+  accountIdInput.addEventListener('input', refreshHints);
   refreshHints();
 
   const modelSection = isEdit
@@ -1321,7 +1338,7 @@ function openProviderModal(provider) {
     h('div', { class: 'grid grid-3' }, [
       h('label', { class: 'block' }, [h('span', { text: 'id（唯一标识，创建后不可改）' }), idInput]),
       h('label', { class: 'block' }, [h('span', { text: '名称' }), nameInput]),
-      h('label', { class: 'block' }, [h('span', { text: 'baseUrl' }), baseUrlInput]),
+      h('label', { class: 'block' }, [h('span', { text: 'baseUrl' }), baseUrlInput, baseUrlPreview]),
       h('label', { class: 'block' }, [h('span', { text: apiKeyLabel }), apiKeyInput]),
       h('div', { class: 'span-2' }, [
         h('label', { class: 'block' }, [h('span', { text: '适配器（上游协议）' }), adapterSelect]),

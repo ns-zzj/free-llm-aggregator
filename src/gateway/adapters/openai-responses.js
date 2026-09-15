@@ -21,10 +21,12 @@
 const mapping = require('../../protocol/responsesMapping');
 const { firstLineOf, chunkOf, responseModel, PROBE_MAX_TOKENS } = require('./common');
 
-/** baseUrl 填 `https://api.openai.com` 或 `.../v1` 都行 */
+/**
+ * baseUrl 是**完整前缀**（`https://api.openai.com/v1`），我们只在后面拼 `/responses`，
+ * 不替用户补 `/v1`（用户 2026-09-15 定：补不补由用户自己看，后台那一格下面会显示拼出来的地址）。
+ */
 function responsesUrl(provider) {
-  const base = String(provider.baseUrl).replace(/\/+$/, '');
-  return /\/v\d+$/.test(base) ? `${base}/responses` : `${base}/v1/responses`;
+  return `${String(provider.baseUrl).replace(/\/+$/, '')}/responses`;
 }
 
 function headersFor(provider, stream) {

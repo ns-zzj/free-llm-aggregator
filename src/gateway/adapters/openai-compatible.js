@@ -3,6 +3,9 @@
 /**
  * openai-compatible：覆盖绝大多数平台（NVIDIA NIM / ModelScope / 各家中转……）。
  * 请求与响应都**原样透传**，只改模型名、只删本服务自己的扩展字段。
+ *
+ * baseUrl 是**完整前缀**（多数中转是 `https://xxx/v1`，阿里云百炼那种是 `.../compatible-mode/v1`），
+ * 我们只在后面拼 `/chat/completions`，不替用户补任何版本段 —— 各家的前缀长得不一样，补不准。
  */
 
 const { responseModel, PROBE_MAX_TOKENS } = require('./common');

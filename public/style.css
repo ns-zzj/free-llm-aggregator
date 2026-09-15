@@ -348,6 +348,8 @@ table.model-table td:not(:nth-child(1)):not(:nth-child(2)) {
 .bar.muted { background: #39404d; }
 
 .hint { color: var(--muted); font-size: 12px; margin: 4px 0 0; }
+/* 中性小字（不是警告）：比如 baseUrl 下面那行「实际请求：…」 */
+.field-note { color: var(--muted); font-size: 12px; margin: 4px 0 0; word-break: break-all; }
 .field-hint { color: var(--warn); font-size: 12px; margin: 4px 0 0; }
 .field-hint[hidden] { display: none; }
 .error-text { color: var(--err); font-size: 12px; }

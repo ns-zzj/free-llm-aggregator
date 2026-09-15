@@ -5,8 +5,8 @@
  *
  * 已实现：
  *   - openai-compatible       覆盖绝大多数平台（NVIDIA NIM / ModelScope / 各家中转……），请求响应原样透传
- *   - openai-responses        OpenAI 的 Responses API（`/responses`）：input/instructions + output items
- *   - anthropic               Anthropic Messages API（`/v1/messages`），翻译成 OpenAI 形状
+ *   - openai-responses        OpenAI 的 Responses API（`{baseUrl}/responses`）：input/instructions + output items
+ *   - anthropic               Anthropic Messages API（`{baseUrl}/messages`），翻译成 OpenAI 形状
  *   - cloudflare-workers-ai   Cloudflare Workers AI（`/accounts/{id}/ai/run/{model}`），同样翻译
  *
  * 新增协议的做法：在 ./adapters/ 下加一个实现并注册进 ./adapters/index.js，

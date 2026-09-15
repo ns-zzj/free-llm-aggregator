@@ -200,7 +200,8 @@ function createMockAnthropic() {
   });
   return new Promise((resolve) => {
     server.listen(0, '127.0.0.1', () => {
-      resolve({ server, state, baseUrl: `http://127.0.0.1:${server.address().port}` });
+      // baseUrl 是**完整前缀**：适配器只在后面拼 `/messages`，不再自动补 `/v1`（用户 2026-09-15 裁定）
+      resolve({ server, state, baseUrl: `http://127.0.0.1:${server.address().port}/v1` });
     });
   });
 }

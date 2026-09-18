@@ -563,6 +563,7 @@ router.patch('/settings', auth.requireAdmin, asyncHandler(async (req, res) => {
     'fake_endpoints_enabled',
     'probe_max_attempts',
     'probe_backoff_seconds',
+    'probe_timeout_seconds',
     'log_retention_days',
     'auto_context_tokens',
     'utc_offset_hours',
@@ -578,6 +579,16 @@ router.patch('/settings', auth.requireAdmin, asyncHandler(async (req, res) => {
       // eslint-disable-next-line no-await-in-loop
       await settings.set(key, String(value));
       timezone.setOffsetHours(value);
+      continue;
+    }
+    if (key === 'probe_timeout_seconds') {
+      // 探测/测试的单次超时（秒）：5 ~ 600。慢源（走前缀代理的境外模型）可以调大
+      const seconds = Number(value);
+      if (!Number.isFinite(seconds) || seconds < 5 || seconds > 600) {
+        throw new HttpError(400, '探测超时需要 5 ~ 600 秒（默认 120，和真实请求一致）');
+      }
+      // eslint-disable-next-line no-await-in-loop
+      await settings.set(key, String(Math.round(seconds)));
       continue;
     }
     if (key === 'probe_backoff_seconds') {

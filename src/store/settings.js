@@ -16,6 +16,10 @@ const DEFAULTS = {
   // 用户 2026-09-13 把它删了 —— 公网放不放行现在只看环境变量 ALLOW_PUBLIC_INTERNET 一个地方。
   fake_endpoints_enabled: 'true',   // usage / billing / credits 假数据端点
   probe_max_attempts: '10',         // 连续探测多少次没恢复就转"需人工"（0 = 一直探测）
+  // 探测 / 后台「测试」的超时（秒）。默认 120，和真实客户端请求的超时（DEFAULT_TIMEOUT_MS）一致。
+  // 30 秒会把"慢但能用"的源误判成超时（NVIDIA NIM 走前缀代理实测 46 秒才出响应头），
+  // 详见 src/gateway/probe.js 里 probeTimeoutMs 的说明。
+  probe_timeout_seconds: '120',
   // 倒计时探测的等待时长表（退避）：第 N 项 = 第 N 次探测前等多久，最后一项带"后续"含义。
   // 见 src/store/probeSchedule.js 的说明。填 0 段 = 用默认表。
   probe_backoff_seconds: JSON.stringify([15, 60, 300]),

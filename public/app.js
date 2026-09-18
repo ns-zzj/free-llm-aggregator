@@ -1771,6 +1771,13 @@ async function renderSettings() {
   const retention = h('input', { type: 'number', min: '1', value: settings.log_retention_days });
   const probeMax = h('input', { type: 'number', min: '0', value: settings.probe_max_attempts });
   const autoContext = h('input', { type: 'number', min: '0', placeholder: '256000', value: settings.auto_context_tokens });
+  const probeTimeout = h('input', {
+    type: 'number',
+    min: '5',
+    max: '600',
+    placeholder: '120',
+    value: settings.probe_timeout_seconds === undefined ? '120' : settings.probe_timeout_seconds,
+  });
   // 时区：应用自己的设置（不看操作系统、也不看 TZ 环境变量——很多 Linux 装完就是 UTC，用户并没意识到）
   const utcOffset = h('input', {
     type: 'number',
@@ -1867,6 +1874,13 @@ async function renderSettings() {
       class: 'hint',
       text: '第 N 次探测前等多久；最后一段之后都用它。前几段短一点，上游抖一下能快点恢复。',
     }),
+    h('label', { class: 'block' }, [h('span', { text: '探测 / 测试的超时（秒）' }), probeTimeout]),
+    h('p', {
+      class: 'hint',
+      text:
+        '等上游这次探测多久没响应就算失败（默认 120，和客户端请求的超时一致）。' +
+        '慢源可以调大（最大 600）—— 推理模型在慢上游上可能几十秒才回，给太小会把能用的模型误判成超时。',
+    }),
     h('label', { class: 'block' }, [h('span', { text: '调用日志保留天数' }), retention]),
     h('label', { class: 'block' }, [h('span', { text: '时区（UTC 偏移小时）' }), utcOffset]),
     h('p', {
@@ -1890,6 +1904,7 @@ async function renderSettings() {
           fake_endpoints_enabled: fakeEndpoints.checked,
           probe_max_attempts: Number(probeMax.value),
           probe_backoff_seconds: backoffValues.filter((n) => Number(n) > 0),
+          probe_timeout_seconds: Number(probeTimeout.value) || 120,
           log_retention_days: Number(retention.value),
           utc_offset_hours: Number(utcOffset.value) || 0,
           auto_context_tokens: Number(autoContext.value) || 0,

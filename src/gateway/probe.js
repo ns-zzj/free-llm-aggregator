@@ -20,7 +20,21 @@ const probeSchedule = require('../store/probeSchedule');
 const naming = require('../naming');
 const logger = require('../logger');
 
-const PROBE_TIMEOUT_MS = 30 * 1000;
+/**
+ * 探测/后台「测试」的超时（原来是写死的 30 秒）。
+ *
+ * 用户 2026-09-17 改成后台可配、默认 120 秒：走**前缀代理**的境外源（比如 NVIDIA NIM 那种
+ * 无服务器按需加载 + 推理模型），冷启动 + 思考经常 15~40 秒才出第一个字节，
+ * 30 秒会把"其实能用"的模型判成超时 —— 而真实客户端请求走的是 `DEFAULT_TIMEOUT_MS`（也是 120 秒），
+ * 于是出现"探测说超时、实际能用"。现在两边口径一致，慢源也能调更大。
+ */
+const DEFAULT_PROBE_TIMEOUT_MS = 120 * 1000;
+
+async function probeTimeoutMs() {
+  const seconds = await settings.getNumber('probe_timeout_seconds');
+  if (!Number.isFinite(seconds) || seconds <= 0) return DEFAULT_PROBE_TIMEOUT_MS;
+  return Math.max(5, Math.min(600, Math.round(seconds))) * 1000;
+}
 
 /**
  * 日志里「请求模型」一列统一写**对外发布名**（`Free/<来源id>/<上游模型名>` 或 `Pay/...`）。
@@ -155,7 +169,7 @@ async function probeModel(provider, model, { manual = false, asCall = false } = 
     const upstream = await adapter.fetchWithTimeout(
       url,
       { method: 'POST', headers, body: JSON.stringify(payload) },
-      PROBE_TIMEOUT_MS
+      await probeTimeoutMs()
     );
     const text = await upstream.text();
     const latencyMs = Date.now() - startedAt;

@@ -14,11 +14,11 @@
 
 ## 安装方式
 
-下载下方的 `nszzj-free-llm-aggregator_2.1.0_<架构>.tar.gz`，然后：
+下载下方的 `NSZZJ-FreeLlmAggregator_Docker_2.1.0_<架构>.tar.gz`，然后：
 
 ```bash
-# ① 导入镜像
-docker load < nszzj-free-llm-aggregator_2.1.0_<架构>.tar.gz
+# ① 导入镜像（<架构> 照附件写：x86-64 / x86-32 / arm64 / arm32）
+docker load < NSZZJ-FreeLlmAggregator_Docker_2.1.0_<架构>.tar.gz
 
 # ② （全新安装跳过这一步）升级旧版本的话：先把旧容器删掉。数据不会丢失，它们存储在宿主机文件夹中。
 sudo docker rm -f nszzj-free-llm-aggregator

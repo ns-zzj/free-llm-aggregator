@@ -86,8 +86,8 @@
 前往 [Release 页面](../../releases/latest) 下载镜像包
 
 ```bash
-# ① 导入镜像（<版本>/<架构> 换成 Release 里那个文件名）
-docker load < nszzj-free-llm-aggregator_<版本>_<架构>.tar.gz
+# ① 导入镜像（文件名里的 <版本>/<架构> 照 Release 里那个附件写）
+docker load < NSZZJ-FreeLlmAggregator_Docker_<版本>_<架构>.tar.gz
 
 # ② 数据目录：把属主交给容器用户（镜像里跑的是非 root，uid 10001）
 sudo chown -R 10001:10001 <此处填写宿主机软件数据存储路径>

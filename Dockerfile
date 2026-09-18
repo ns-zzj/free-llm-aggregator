@@ -1,18 +1,23 @@
-# 目标环境：Debian 12（bookworm）+ Docker
+# 目标环境：任意 Linux + Docker（容器里跑 Alpine，跟宿主机发行版无关）
 #
-# 用 Node 22 而不是 20：better-sqlite3 v13 声明 engines>=22，
-# 在 Node 20 上会退化成本地编译甚至装不上（package.json 的 engines 也是 >=22）。
-FROM node:22-bookworm-slim AS deps
+# 基底是 **Alpine (musl)**，不是 debian-slim（用户 2026-09-18 定）：省约三成体积（102.5 MB → 约 70 MB）。
+# 换基底前先读这三条，都是踩过的坑：
+#   - **better-sqlite3 没有 musl 预编译包**（v12 之后官方不再发 musl 版），所以 `npm ci` 会现场编译。
+#     编译很快（x86-64 约 5 秒，arm64 走 QEMU 仿真约 24 秒），而且**吃 Docker 层缓存**：
+#     只要 package.json / package-lock.json 不变，这一层永远 CACHED，不会每次重编。
+#   - **Alpine 自带的 Node 是"非官方构建"**，node-gyp 默认去 unofficial-builds.nodejs.org 下同版本头文件；
+#     那个域名很多网络里连不上（我们就连不上），所以必须让它用镜像里自带的头文件：
+#     `npm_config_nodedir=/usr/local`。**删掉这行构建会挂在"下载头文件超时"上。**
+#   - Node 22 而不是 20：better-sqlite3 v13 声明 engines>=22，在 Node 20 上会退化成本地编译甚至装不上
+#     （package.json 的 engines 也是 >=22）。
+FROM node:22-alpine AS deps
 WORKDIR /app
-# 原生模块（better-sqlite3）优先用预编译包；没有预编译时回退到本地编译
-# （argon2 已在 2026-09-15 移除：管理口令改成和 apikey 同一套 libsodium 加密，不再需要它）
-RUN apt-get update \
-  && apt-get install -y --no-install-recommends python3 make g++ ca-certificates \
-  && rm -rf /var/lib/apt/lists/*
+# 只有这一层需要编译工具链；最终镜像里没有它们（多阶段的好处）
+RUN apk add --no-cache python3 make g++
 COPY package.json package-lock.json ./
-RUN npm ci --omit=dev --no-fund
+RUN npm_config_nodedir=/usr/local NODEJS_CHECK_SIGNATURES=no npm ci --omit=dev --no-fund
 
-FROM node:22-bookworm-slim
+FROM node:22-alpine
 # BIND 留空/0.0.0.0 = 所有地址：默认绑双栈 `::`，IPv4 与 IPv6 都能连（见 src/index.js 的 bindCandidates）
 # TZ 不设：时区是应用自己的设置（后台「设置」页的 UTC 偏移），跟系统时区无关，见 src/store/timezone.js
 ENV NODE_ENV=production \
@@ -34,7 +39,9 @@ COPY scripts ./scripts
 # 至少别让攻击者直接拿到 root、也别让他随便改挂载进来的宿主机目录。
 # 代价：宿主机上的 ./data 必须属于这个 uid（见 docker-compose.yml 里的说明），
 # 否则容器内写不进去（Linux 上先执行：sudo chown -R 10001:10001 ./data）。
-RUN groupadd -r app && useradd -r -g app -u 10001 app \
+# 这里是 Alpine 的 busybox 版 addgroup/adduser（不是 Debian 的 groupadd/useradd，参数不一样）：
+#   -S = 系统账号、-u 指定 uid、-D 不设密码、-H 不建家目录
+RUN addgroup -S app && adduser -S -G app -u 10001 -H app \
   && mkdir -p /app/data \
   && chown -R app:app /app
 USER 10001:app

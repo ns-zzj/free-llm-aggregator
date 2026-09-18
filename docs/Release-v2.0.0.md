@@ -67,7 +67,3 @@ sudo docker run -d \
   数据库不用动、数据目录不用动，直接换镜像 + 改客户端地址即可（迁移会在启动时自动跑）。
 - **镜像只有 x86-64（amd64）的**：ARM（arm64 / aarch64）等其它架构跑不了（load 得进去但会 `exec format error`），
   要自己重新编译一份 —— 见 README「跑起来 → B. 开发者」。
-- **Responses 方言是无状态的**：`store` 恒等于关掉（不在上游留会话），`previous_response_id` 明确回 400
-  并说明原因 —— 不会装作支持然后悄悄丢上下文。
-- **Anthropic 方言不处理 `thinking` 块**：Anthropic 的思考块要服务端签名，我们给不出合法签名，
-  所以既不接收也不返回（客户端传了会被忽略）。

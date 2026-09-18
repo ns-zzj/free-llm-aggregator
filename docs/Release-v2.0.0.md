@@ -65,5 +65,4 @@ sudo docker run -d \
 
 - **从 1.0.0 升级要改客户端地址**：`.../v1` 改成 `.../openai`（Anthropic 客户端用 `.../anthropic`）。
   数据库不用动、数据目录不用动，直接换镜像 + 改客户端地址即可（迁移会在启动时自动跑）。
-- **镜像只有 x86-64（amd64）的**：ARM（arm64 / aarch64）等其它架构跑不了（load 得进去但会 `exec format error`），
-  要自己重新编译一份 —— 见 README「跑起来 → B. 开发者」。
+- **镜像只有 x86-64（amd64）的**：ARM（arm64 / aarch64）等其它架构跑不了（load 得进去但会 `exec format error`）。

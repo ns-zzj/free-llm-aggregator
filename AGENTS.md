@@ -1,7 +1,14 @@
 # NSZZJ-Free-LLM-Aggregator · 本项目的约定
 
-> 通用偏好（沟通方式、沙箱/环境坑）在全局 `~/.dsh/AGENTS.md`，这里只写**本项目特有**的规矩。
+> 项目专有的规矩都写在这里；别的项目各配各的（不写进全局文件）。
 > 这份是要提交的（对别人 fork / 接手也有用）。
+
+## 沟通与干活方式
+
+- **中文**，简短直接。别写小作文、别复盘、别客套。
+- 报告要**证据**：命令输出、文件名、实测数字。别用"应该/大概"糊过去；没测过就说没测过。
+- 命令给**可直接粘贴**的形式：Windows 上给 PowerShell 版，Linux 服务器上给 bash 版，别混。
+- **别把完整测试套件当日常手段**：改配置/常量/注释/文档 → 不跑测试；改逻辑 → 只跑受影响的那几个测试文件，且先说一声。
 
 ## 文档各写什么
 
@@ -28,7 +35,8 @@
 - 架构名**只有四个**：`x86-64` / `x86-32` / `arm64` / `arm32`；脚本内部会把 Node 的 `x64` 和 Docker 的 `amd64` 翻译成 `x86-64`
 - 镜像标签保持小写：`nszzj-free-llm-aggregator:<版本>`（Docker 仓库名必须小写）
 - 目前**只出 x86-64 和 arm64**：32 位没有 —— Node 官方从 16 之后不再发 32 位 Linux 构建
-- 跨架构构建：`node scripts/build-image.js --arch arm64`（Windows/本地走 QEMU；不要用 `npm run image`，见全局说明）
+- 跨架构构建：`node scripts/build-image.js --arch arm64`（本机没装 Docker 时见 README 的开发者一节；
+  这台 Windows 机器上别用 `npm run image`，直接用 `node scripts/build-image.js`）
 
 ## 本地文件（不进 git，别当成项目文档）
 
